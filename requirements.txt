@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+torch
+diffusers
+sentence-transformers
+pinecone-client
+cloudinary
+python-multipart
+pydantic
+python-dotenv
+opencv-python
