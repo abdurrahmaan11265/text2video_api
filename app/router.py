@@ -63,7 +63,7 @@ async def check_status(task_id: str):
     status = task_status[task_id]
     if status["status"] == "done":
         return {"results": [{"prompt": status.get("prompt", "unknown"), 
-                           "video_url": status["video_url"]}]}
+                           "video_url": status["video_url"]}], "status": "done"}
     elif status["status"] == "error":
         raise HTTPException(status_code=500, detail=status["message"])
     else:

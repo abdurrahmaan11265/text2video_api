@@ -3,6 +3,8 @@ from diffusers import AutoencoderKLWan, WanPipeline
 from diffusers.schedulers.scheduling_unipc_multistep import UniPCMultistepScheduler
 from diffusers.utils import export_to_video
 import uuid
+from moviepy.editor import VideoFileClip, concatenate_videoclips
+import os
 
 model_id = "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
 
@@ -23,9 +25,13 @@ NEGATIVE_PROMPT = (
     "unnatural lighting, bad shadows, out of frame, cropped, low detail"
 )
 
+
 def generate_video(prompt: str, out_path: str = None) -> str:
     if not out_path:
         out_path = f"/tmp/{uuid.uuid4()}.mp4"
+
+    # Generate initial video
+    temp_path = f"/tmp/temp_{uuid.uuid4()}.mp4"
 
     output = pipe(
         prompt=prompt,
@@ -36,5 +42,20 @@ def generate_video(prompt: str, out_path: str = None) -> str:
         guidance_scale=5.0,
     ).frames[0]
 
-    export_to_video(output, out_path, fps=16)
+    # Save initial video
+    export_to_video(output, temp_path, fps=16)
+
+    # Load the video and concatenate it with itself
+    video = VideoFileClip(temp_path)
+    final_video = concatenate_videoclips([video, video])
+
+    # Save the doubled video
+    final_video.write_videofile(out_path, codec="libx264")
+
+    # Clean up temporary file
+    video.close()
+    final_video.close()
+    if os.path.exists(temp_path):
+        os.remove(temp_path)
+
     return out_path
