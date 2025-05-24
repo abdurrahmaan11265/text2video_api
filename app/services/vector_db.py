@@ -1,25 +1,47 @@
-import pinecone
+from pinecone import Pinecone, ServerlessSpec
 from app import config
 
-pinecone.init(api_key=config.PINECONE_API_KEY, environment=config.PINECONE_ENV)
+# Initialize Pinecone client
+pc = Pinecone(api_key=config.PINECONE_API_KEY)
 
-# Create index if it doesn't exist
-if config.PINECONE_INDEX_NAME not in pinecone.list_indexes():
-    pinecone.create_index(
-        name=config.PINECONE_INDEX_NAME,
-        dimension=768,  # for all-mpnet-base-v2
-        metric="cosine"
-    )
+# Ensure the index exists
+def ensure_index_exists(index_name: str, dimension: int, metric: str = "cosine"):
+    indexes = pc.list_indexes().names()
+    if index_name not in indexes:
+        pc.create_index(
+            name=index_name,
+            dimension=dimension,
+            metric=metric,
+            spec=ServerlessSpec(
+                cloud=config.PINECONE_CLOUD,
+                region=config.PINECONE_REGION 
+            )
+        )
 
-index = pinecone.Index(config.PINECONE_INDEX_NAME)
+# Run this at module level or from startup logic
+ensure_index_exists(config.PINECONE_INDEX_NAME, dimension=768)
 
-def query_similar(embedding: list[float], threshold: float):
-    results = index.query(vector=embedding, top_k=1, include_metadata=True)
-    if results.matches and results.matches[0].score >= threshold:
-        return results.matches[0].metadata.get("video_url")
-    return None
+# Get the index object to use for queries/upserts
+index = pc.Index(config.PINECONE_INDEX_NAME)
 
-def upsert_vector(id_: str, embedding: list[float], prompt: str, video_url: str):
-    index.upsert([
-        (id_, embedding, {"prompt": prompt, "video_url": video_url})
-    ])
+def query_similar(embedding, threshold=0.90):
+    try:
+        result = index.query(vector=embedding, top_k=1, include_metadata=True)
+        matches = result.get("matches", [])
+        if matches and matches[0]["score"] >= threshold:
+            return matches[0]["metadata"]["video_url"]
+        return None
+    except Exception as e:
+        logger.error(f"Error querying vector database: {str(e)}")
+        raise
+
+def upsert_vector(id, embedding, prompt: str, video_url: str):
+    metadata = {
+        "prompt": prompt,
+        "video_url": video_url
+    }
+    index.upsert(vectors=[{
+        "id": id,
+        "values": embedding,
+        "metadata": metadata
+    }])

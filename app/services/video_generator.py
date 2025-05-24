@@ -32,7 +32,7 @@ def generate_video(prompt: str, out_path: str = None) -> str:
         negative_prompt=NEGATIVE_PROMPT,
         height=512,
         width=768,
-        num_frames=81,
+        num_frames=24,
         guidance_scale=5.0,
     ).frames[0]
 

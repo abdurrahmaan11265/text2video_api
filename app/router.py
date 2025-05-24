@@ -16,6 +16,7 @@ def generate_videos(request: PromptRequest):
     results = []
 
     for prompt, emb in zip(prompts, embeddings):
+        print(f"Processing prompt: {prompt}")
         existing_url = query_similar(emb, config.SIMILARITY_THRESHOLD)
         if existing_url:
             results.append({"prompt": prompt, "video_url": existing_url})
@@ -28,3 +29,7 @@ def generate_videos(request: PromptRequest):
         results.append({"prompt": prompt, "video_url": video_url})
 
     return {"results": results}
+
+@router.get("/")
+def health_check():
+    return {"status": "ok"}

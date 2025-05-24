@@ -3,9 +3,12 @@ uvicorn
 torch
 diffusers
 sentence-transformers
-pinecone-client
+pinecone
 cloudinary
 python-multipart
 pydantic
 python-dotenv
+imageio
+imageio-ffmpeg
 opencv-python
+accelerate
