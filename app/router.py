@@ -9,6 +9,7 @@ import uuid
 import logging
 from typing import Dict
 from fastapi.responses import JSONResponse
+import threading  # use thread-safe lock
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -16,16 +17,24 @@ router = APIRouter()
 # Temporary in-memory task store
 task_status: Dict[str, Dict] = {}
 
+# Thread lock to prevent concurrent GPU access
+gpu_lock = threading.Lock()
+
 def process_prompt(task_id: str, prompt: str, emb: list):
     try:
         logger.info(f"Processing prompt for task {task_id}: {prompt}")
+
         existing_url = query_similar(emb, config.SIMILARITY_THRESHOLD)
         if existing_url:
             logger.info(f"Found existing video for task {task_id}")
             task_status[task_id] = {"status": "done", "video_url": existing_url, "prompt": prompt}
             return
 
-        video_path = generate_video(prompt)
+        # Block other threads from using GPU
+        with gpu_lock:
+            logger.info(f"Acquired GPU lock for task {task_id}")
+            video_path = generate_video(prompt)
+
         video_url = upload_video(video_path)
         upsert_vector(task_id, emb, prompt, video_url)
         task_status[task_id] = {"status": "done", "video_url": video_url, "prompt": prompt}
@@ -40,7 +49,7 @@ async def generate_videos(request: PromptRequest, background_tasks: BackgroundTa
         prompts = request.prompts
         if not prompts:
             raise HTTPException(status_code=400, content={"message": "No prompts provided"})
-            
+
         embeddings = get_embeddings(prompts)
         task_ids = []
 
@@ -62,8 +71,13 @@ async def check_status(task_id: str):
 
     status = task_status[task_id]
     if status["status"] == "done":
-        return {"results": [{"prompt": status.get("prompt", "unknown"), 
-                           "video_url": status["video_url"]}], "status": "done"}
+        return {
+            "results": [{
+                "prompt": status.get("prompt", "unknown"),
+                "video_url": status["video_url"]
+            }],
+            "status": "done"
+        }
     elif status["status"] == "error":
         raise HTTPException(status_code=500, detail=status["message"])
     else:
